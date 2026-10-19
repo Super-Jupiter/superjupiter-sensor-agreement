@@ -5,13 +5,30 @@
 #if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ > 0)
 #error "SuperJupiter requires IEEE non-finite checks; disable fast-math"
 #endif
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <limits>
+#include <float.h>
+#include <math.h>
+#include <stddef.h>
+#include <stdint.h>
 #define SUPERJUPITER_SENSOR_AGREEMENT_VERSION "0.1.0"
 namespace superjupiter {
 namespace sensor_agreement {
+
+namespace detail {
+inline bool finite(double value) { return value == value && value >= -DBL_MAX && value <= DBL_MAX; }
+inline double oneMinusExpNegative(double ratio) {
+  // Stable at small elapsed/tau without requiring AVR's unavailable expm1.
+  if (ratio < 0.01) {
+    double term = ratio, total = ratio;
+    for (unsigned n = 2; n <= 12; ++n) {
+      term *= -ratio / n;
+      total += term;
+    }
+    return total;
+  }
+  return 1 - ::exp(-ratio);
+}
+} // namespace detail
+
 enum class Status { Agree, Disagree, Insufficient, InvalidConfig, NumericError };
 struct Sample {
   double value;
@@ -31,13 +48,13 @@ struct Result {
 };
 inline Result compare(const Sample *samples, size_t count, Config c = Config()) {
   Result r = {Status::InvalidConfig, 0, 0, 0, 0, 0};
-  if ((!samples && count) || !c.minSensors || !std::isfinite(c.absoluteTolerance) ||
-      !std::isfinite(c.relativeTolerance) || c.absoluteTolerance < 0 || c.relativeTolerance < 0)
+  if ((!samples && count) || !c.minSensors || !detail::finite(c.absoluteTolerance) ||
+      !detail::finite(c.relativeTolerance) || c.absoluteTolerance < 0 || c.relativeTolerance < 0)
     return r;
   double low = 0, high = 0, scale = 0;
   for (size_t i = 0; i < count; ++i) {
     const Sample &s = samples[i];
-    if (!std::isfinite(s.value) || s.ageMs > c.maxAgeMs) {
+    if (!detail::finite(s.value) || s.ageMs > c.maxAgeMs) {
       ++r.excluded;
       continue;
     }
@@ -52,8 +69,8 @@ inline Result compare(const Sample *samples, size_t count, Config c = Config()) 
     ++r.eligible;
     const double n = static_cast<double>(r.eligible);
     r.mean = r.mean * (1 - 1 / n) + s.value / n;
-    if (std::fabs(s.value) > scale)
-      scale = std::fabs(s.value);
+    if (::fabs(s.value) > scale)
+      scale = ::fabs(s.value);
   }
   if (r.eligible < c.minSensors) {
     r.status = Status::Insufficient;
@@ -61,7 +78,7 @@ inline Result compare(const Sample *samples, size_t count, Config c = Config()) 
   }
   r.spread = high - low;
   r.tolerance = c.absoluteTolerance + c.relativeTolerance * scale;
-  if (!std::isfinite(r.mean) || !std::isfinite(r.spread) || !std::isfinite(r.tolerance)) {
+  if (!detail::finite(r.mean) || !detail::finite(r.spread) || !detail::finite(r.tolerance)) {
     r.status = Status::NumericError;
     return r;
   }
