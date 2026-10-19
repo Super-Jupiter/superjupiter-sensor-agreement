@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SuperJupiterSensorAgreement VERSION 0.1.0 LANGUAGES CXX)
+project(SuperJupiterSensorAgreement VERSION 0.1.1 LANGUAGES CXX)
 
 set(_superjupiter_sensor_agreement_top_level OFF)
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
@@ -19,6 +19,9 @@ target_compile_features(SuperJupiterSensorAgreement INTERFACE cxx_std_11)
 
 if(SUPERJUPITER_SENSOR_AGREEMENT_BUILD_TESTS)
   enable_testing()
+  add_executable(superjupiter-sensor-agreement-review tests/review_regressions.cpp)
+  target_link_libraries(superjupiter-sensor-agreement-review PRIVATE SuperJupiter::SensorAgreement)
+  add_test(NAME superjupiter-sensor-agreement-review COMMAND superjupiter-sensor-agreement-review)
   add_executable(superjupiter-sensor-agreement-tests tests/test.cpp)
   target_link_libraries(superjupiter-sensor-agreement-tests PRIVATE SuperJupiter::SensorAgreement)
   add_test(NAME superjupiter-sensor-agreement-tests COMMAND superjupiter-sensor-agreement-tests)
